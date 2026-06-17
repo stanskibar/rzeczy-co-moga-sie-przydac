@@ -1,1 +1,142 @@
+import sys
+import json
 
+from PyQt5.QtWidgets import *
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+
+
+class Lot:
+    def __init__(self, numer, linia, opoznienie):
+        self.numer = numer
+        self.linia = linia
+        self.opoznienie = opoznienie
+
+
+class MenedzerLotniska:
+    def __init__(self):
+        self.loty = []
+
+    def dodaj_lot(self, lot):
+        self.loty.append(lot)
+
+    def zapisz(self):
+        dane = []
+
+        for lot in self.loty:
+            dane.append({
+                "numer": lot.numer,
+                "linia": lot.linia,
+                "opoznienie": lot.opoznienie
+            })
+
+        with open("loty.json", "w") as plik:
+            json.dump(dane, plik)
+
+    def wczytaj(self):
+        try:
+            with open("loty.json", "r") as plik:
+                dane = json.load(plik)
+
+            for x in dane:
+                lot = Lot(
+                    x["numer"],
+                    x["linia"],
+                    x["opoznienie"]
+                )
+                self.loty.append(lot)
+
+        except:
+            pass
+
+
+class Okno(QWidget):
+    def __init__(self):
+        super().__init__()
+
+        self.baza = MenedzerLotniska()
+        self.baza.wczytaj()
+
+        self.setWindowTitle("Lotnisko")
+
+        self.numer = QLineEdit()
+
+        self.linia = QComboBox()
+        self.linia.addItems([
+            "LOT",
+            "Ryanair",
+            "Lufthansa"
+        ])
+
+        self.opoznienie = QSpinBox()
+
+        self.przycisk = QPushButton("Dodaj lot")
+        self.przycisk.clicked.connect(self.dodaj)
+
+        self.tabela = QTableWidget()
+        self.tabela.setColumnCount(3)
+        self.tabela.setHorizontalHeaderLabels([
+            "Numer",
+            "Linia",
+            "Opóźnienie"
+        ])
+
+        self.figura = Figure()
+        self.canvas = FigureCanvas(self.figura)
+
+        layout = QVBoxLayout()
+
+        layout.addWidget(self.numer)
+        layout.addWidget(self.linia)
+        layout.addWidget(self.opoznienie)
+        layout.addWidget(self.przycisk)
+        layout.addWidget(self.tabela)
+        layout.addWidget(self.canvas)
+
+        self.setLayout(layout)
+
+        self.odswiez()
+
+    def dodaj(self):
+        lot = Lot(
+            self.numer.text(),
+            self.linia.currentText(),
+            self.opoznienie.value()
+        )
+
+        self.baza.dodaj_lot(lot)
+        self.baza.zapisz()
+
+        self.odswiez()
+
+    def odswiez(self):
+        self.tabela.setRowCount(len(self.baza.loty))
+
+        for i, lot in enumerate(self.baza.loty):
+            self.tabela.setItem(i, 0, QTableWidgetItem(lot.numer))
+            self.tabela.setItem(i, 1, QTableWidgetItem(lot.linia))
+            self.tabela.setItem(i, 2, QTableWidgetItem(str(lot.opoznienie)))
+
+        self.figura.clear()
+
+        ax = self.figura.add_subplot(111)
+
+        linie = {}
+        for lot in self.baza.loty:
+            if lot.linia in linie:
+                linie[lot.linia] += 1
+            else:
+                linie[lot.linia] = 1
+
+        ax.bar(linie.keys(), linie.values())
+        ax.set_title("Liczba lotów")
+
+        self.canvas.draw()
+
+
+app = QApplication(sys.argv)
+
+okno = Okno()
+okno.show()
+
+sys.exit(app.exec_())
