@@ -1,1 +1,154 @@
+import sys
+import json
 
+from PyQt5.QtWidgets import *
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+
+
+class OdczytPogodowy:
+    def __init__(self, miasto, temperatura, wilgotnosc, pm25):
+        self.miasto = miasto
+        self.temperatura = temperatura
+        self.wilgotnosc = wilgotnosc
+        self.pm25 = pm25
+
+
+class BazaPogodowa:
+    def __init__(self):
+        self.odczyty = []
+
+    def dodaj_odczyt(self, odczyt):
+        self.odczyty.append(odczyt)
+
+    def zapisz(self):
+        dane = []
+
+        for odczyt in self.odczyty:
+            dane.append({
+                "miasto": odczyt.miasto,
+                "temperatura": odczyt.temperatura,
+                "wilgotnosc": odczyt.wilgotnosc,
+                "pm25": odczyt.pm25
+            })
+
+        with open("pogoda.json", "w") as plik:
+            json.dump(dane, plik)
+
+    def wczytaj(self):
+        try:
+            with open("pogoda.json", "r") as plik:
+                dane = json.load(plik)
+
+            for x in dane:
+                odczyt = OdczytPogodowy(
+                    x["miasto"],
+                    x["temperatura"],
+                    x["wilgotnosc"],
+                    x["pm25"]
+                )
+                self.odczyty.append(odczyt)
+
+        except:
+            pass
+
+
+class Okno(QWidget):
+    def __init__(self):
+        super().__init__()
+
+        self.baza = BazaPogodowa()
+        self.baza.wczytaj()
+
+        self.setWindowTitle("Stacja pogodowa")
+
+        self.miasto = QComboBox()
+        self.miasto.addItems([
+            "Warszawa",
+            "Kraków",
+            "Gdańsk"
+        ])
+
+        self.temperatura = QDoubleSpinBox()
+        self.temperatura.setRange(-40, 50)
+
+        self.wilgotnosc = QSpinBox()
+        self.wilgotnosc.setRange(0, 100)
+
+        self.pm25 = QSpinBox()
+        self.pm25.setRange(0, 500)
+
+        self.przycisk = QPushButton("Dodaj odczyt")
+        self.przycisk.clicked.connect(self.dodaj)
+
+        self.tabela = QTableWidget()
+        self.tabela.setColumnCount(4)
+        self.tabela.setHorizontalHeaderLabels([
+            "Miasto",
+            "Temperatura",
+            "Wilgotność",
+            "PM2.5"
+        ])
+
+        self.figura = Figure()
+        self.canvas = FigureCanvas(self.figura)
+
+        layout = QVBoxLayout()
+
+        layout.addWidget(self.miasto)
+        layout.addWidget(self.temperatura)
+        layout.addWidget(self.wilgotnosc)
+        layout.addWidget(self.pm25)
+        layout.addWidget(self.przycisk)
+        layout.addWidget(self.tabela)
+        layout.addWidget(self.canvas)
+
+        self.setLayout(layout)
+
+        self.odswiez()
+
+    def dodaj(self):
+        odczyt = OdczytPogodowy(
+            self.miasto.currentText(),
+            self.temperatura.value(),
+            self.wilgotnosc.value(),
+            self.pm25.value()
+        )
+
+        self.baza.dodaj_odczyt(odczyt)
+        self.baza.zapisz()
+
+        self.odswiez()
+
+    def odswiez(self):
+        self.tabela.setRowCount(len(self.baza.odczyty))
+
+        for i, odczyt in enumerate(self.baza.odczyty):
+            self.tabela.setItem(i, 0, QTableWidgetItem(odczyt.miasto))
+            self.tabela.setItem(i, 1, QTableWidgetItem(str(odczyt.temperatura)))
+            self.tabela.setItem(i, 2, QTableWidgetItem(str(odczyt.wilgotnosc)))
+            self.tabela.setItem(i, 3, QTableWidgetItem(str(odczyt.pm25)))
+
+        self.figura.clear()
+
+        ax = self.figura.add_subplot(111)
+
+        miasta = {}
+        for odczyt in self.baza.odczyty:
+            if odczyt.miasto in miasta:
+                miasta[odczyt.miasto] += 1
+            else:
+                miasta[odczyt.miasto] = 1
+
+        ax.bar(miasta.keys(), miasta.values())
+        ax.set_title("Liczba pomiarów")
+
+        self.canvas.draw()
+
+
+app = QApplication(sys.argv)
+
+okno = Okno()
+okno.show()
+
+sys.exit(app.exec_())
