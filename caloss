@@ -1,0 +1,269 @@
+import sys
+import json
+
+from PyQt5.QtWidgets import *
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+
+
+class Klient:
+    def __init__(self, imie, nazwisko, nr_dowodu):
+        self.imie = imie
+        self.nazwisko = nazwisko
+        self.nr_dowodu = nr_dowodu
+
+
+class Samochod:
+    def __init__(self, marka, model, rok, vin, rejestracja, przebieg, cena):
+        self.marka = marka
+        self.model = model
+        self.rok = rok
+        self.vin = vin
+        self.rejestracja = rejestracja
+        self.przebieg = przebieg
+        self.cena = cena
+        self.wypozyczony = False
+
+
+class Wypozyczalnia:
+    def __init__(self):
+        self.samochody = []
+        self.historia = []
+
+    def dodaj_samochod(self, samochod):
+        for s in self.samochody:
+            if s.vin == samochod.vin or s.rejestracja == samochod.rejestracja:
+                QMessageBox.warning(None, "Błąd", "Taki samochód już istnieje")
+                return
+
+        self.samochody.append(samochod)
+
+    def wypozycz_samochod(self, rejestracja, klient):
+        for s in self.samochody:
+            if s.rejestracja == rejestracja:
+                if s.wypozyczony:
+                    QMessageBox.warning(None, "Błąd", "Samochód jest już wypożyczony")
+                    return
+
+                s.wypozyczony = True
+                self.historia.append(rejestracja)
+                return
+
+        QMessageBox.warning(None, "Błąd", "Nie znaleziono samochodu")
+
+    def zwroc_samochod(self, rejestracja, nowy_przebieg, dni):
+        for s in self.samochody:
+            if s.rejestracja == rejestracja:
+                if nowy_przebieg < s.przebieg:
+                    QMessageBox.warning(None, "Błąd", "Nowy przebieg jest za mały")
+                    return 0
+
+                s.wypozyczony = False
+                s.przebieg = nowy_przebieg
+                return dni * s.cena
+
+        QMessageBox.warning(None, "Błąd", "Nie znaleziono samochodu")
+        return 0
+
+    def zapisz(self):
+        dane = []
+
+        for s in self.samochody:
+            dane.append({
+                "marka": s.marka,
+                "model": s.model,
+                "rok": s.rok,
+                "vin": s.vin,
+                "rejestracja": s.rejestracja,
+                "przebieg": s.przebieg,
+                "cena": s.cena,
+                "wypozyczony": s.wypozyczony
+            })
+
+        with open("wypozyczalnia.json", "w") as plik:
+            json.dump(dane, plik)
+
+    def wczytaj(self):
+        try:
+            with open("wypozyczalnia.json", "r") as plik:
+                dane = json.load(plik)
+
+            for x in dane:
+                s = Samochod(
+                    x["marka"],
+                    x["model"],
+                    x["rok"],
+                    x["vin"],
+                    x["rejestracja"],
+                    x["przebieg"],
+                    x["cena"]
+                )
+                s.wypozyczony = x["wypozyczony"]
+                self.samochody.append(s)
+
+        except:
+            pass
+
+
+class Okno(QWidget):
+    def __init__(self):
+        super().__init__()
+
+        self.baza = Wypozyczalnia()
+        self.baza.wczytaj()
+
+        self.setWindowTitle("Wypożyczalnia samochodów")
+
+        self.marka = QLineEdit()
+        self.marka.setPlaceholderText("Marka")
+
+        self.model = QLineEdit()
+        self.model.setPlaceholderText("Model")
+
+        self.rok = QSpinBox()
+        self.rok.setRange(1900, 2030)
+
+        self.vin = QLineEdit()
+        self.vin.setPlaceholderText("VIN")
+
+        self.rejestracja = QLineEdit()
+        self.rejestracja.setPlaceholderText("Rejestracja")
+
+        self.przebieg = QSpinBox()
+        self.przebieg.setRange(0, 1000000)
+
+        self.cena = QDoubleSpinBox()
+        self.cena.setRange(0, 5000)
+
+        self.imie = QLineEdit()
+        self.imie.setPlaceholderText("Imię klienta")
+
+        self.nazwisko = QLineEdit()
+        self.nazwisko.setPlaceholderText("Nazwisko klienta")
+
+        self.dowod = QLineEdit()
+        self.dowod.setPlaceholderText("Nr dowodu")
+
+        self.dni = QSpinBox()
+        self.dni.setRange(1, 365)
+
+        self.btn_dodaj = QPushButton("Dodaj samochód")
+        self.btn_dodaj.clicked.connect(self.dodaj)
+
+        self.btn_wypozycz = QPushButton("Wypożycz")
+        self.btn_wypozycz.clicked.connect(self.wypozycz)
+
+        self.btn_zwroc = QPushButton("Zwróć")
+        self.btn_zwroc.clicked.connect(self.zwroc)
+
+        self.tabela = QTableWidget()
+        self.tabela.setColumnCount(8)
+        self.tabela.setHorizontalHeaderLabels([
+            "Marka", "Model", "Rok", "VIN", "Rejestracja", "Przebieg", "Cena", "Status"
+        ])
+
+        self.figura = Figure()
+        self.canvas = FigureCanvas(self.figura)
+
+        layout = QVBoxLayout()
+
+        layout.addWidget(self.marka)
+        layout.addWidget(self.model)
+        layout.addWidget(self.rok)
+        layout.addWidget(self.vin)
+        layout.addWidget(self.rejestracja)
+        layout.addWidget(self.przebieg)
+        layout.addWidget(self.cena)
+        layout.addWidget(self.imie)
+        layout.addWidget(self.nazwisko)
+        layout.addWidget(self.dowod)
+        layout.addWidget(self.dni)
+
+        layout.addWidget(self.btn_dodaj)
+        layout.addWidget(self.btn_wypozycz)
+        layout.addWidget(self.btn_zwroc)
+
+        layout.addWidget(self.tabela)
+        layout.addWidget(self.canvas)
+
+        self.setLayout(layout)
+
+        self.odswiez()
+
+    def dodaj(self):
+        s = Samochod(
+            self.marka.text(),
+            self.model.text(),
+            self.rok.value(),
+            self.vin.text(),
+            self.rejestracja.text(),
+            self.przebieg.value(),
+            self.cena.value()
+        )
+
+        self.baza.dodaj_samochod(s)
+        self.baza.zapisz()
+        self.odswiez()
+
+    def wypozycz(self):
+        klient = Klient(
+            self.imie.text(),
+            self.nazwisko.text(),
+            self.dowod.text()
+        )
+
+        self.baza.wypozycz_samochod(self.rejestracja.text(), klient)
+        self.baza.zapisz()
+        self.odswiez()
+
+    def zwroc(self):
+        koszt = self.baza.zwroc_samochod(
+            self.rejestracja.text(),
+            self.przebieg.value(),
+            self.dni.value()
+        )
+
+        self.baza.zapisz()
+        self.odswiez()
+
+        QMessageBox.information(self, "Koszt", "Koszt wynajmu: " + str(koszt) + " zł")
+
+    def odswiez(self):
+        self.tabela.setRowCount(len(self.baza.samochody))
+
+        for i, s in enumerate(self.baza.samochody):
+            status = "Wypożyczony" if s.wypozyczony else "Dostępny"
+
+            self.tabela.setItem(i, 0, QTableWidgetItem(s.marka))
+            self.tabela.setItem(i, 1, QTableWidgetItem(s.model))
+            self.tabela.setItem(i, 2, QTableWidgetItem(str(s.rok)))
+            self.tabela.setItem(i, 3, QTableWidgetItem(s.vin))
+            self.tabela.setItem(i, 4, QTableWidgetItem(s.rejestracja))
+            self.tabela.setItem(i, 5, QTableWidgetItem(str(s.przebieg)))
+            self.tabela.setItem(i, 6, QTableWidgetItem(str(s.cena)))
+            self.tabela.setItem(i, 7, QTableWidgetItem(status))
+
+        self.figura.clear()
+        ax = self.figura.add_subplot(111)
+
+        statystyka = {}
+
+        for h in self.baza.historia:
+            if h in statystyka:
+                statystyka[h] += 1
+            else:
+                statystyka[h] = 1
+
+        ax.bar(statystyka.keys(), statystyka.values())
+        ax.set_title("Liczba wynajmów")
+        ax.set_ylabel("Ilość")
+
+        self.canvas.draw()
+
+
+app = QApplication(sys.argv)
+
+okno = Okno()
+okno.show()
+
+sys.exit(app.exec_())
