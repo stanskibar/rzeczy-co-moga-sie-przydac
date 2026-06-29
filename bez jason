@@ -1,0 +1,152 @@
+import sys
+
+from PyQt5.QtWidgets import *
+
+
+class Klient:
+    def __init__(self, imie, nazwisko, nr_dowodu):
+        self.imie = imie
+        self.nazwisko = nazwisko
+        self.nr_dowodu = nr_dowodu
+
+
+class Samochod:
+    def __init__(self, marka, model, rok, vin, rejestracja, przebieg, cena):
+        self.marka = marka
+        self.model = model
+        self.rok = rok
+        self.vin = vin
+        self.rejestracja = rejestracja
+        self.przebieg = przebieg
+        self.cena = cena
+        self.wypozyczony = False
+
+
+class Wypozyczalnia:
+    def __init__(self):
+        self.samochody = []
+
+    def dodaj_samochod(self, samochod):
+        self.samochody.append(samochod)
+
+    def wypozycz_samochod(self, rejestracja):
+        for s in self.samochody:
+            if s.rejestracja == rejestracja:
+                s.wypozyczony = True
+
+    def zwroc_samochod(self, rejestracja, nowy_przebieg):
+        for s in self.samochody:
+            if s.rejestracja == rejestracja:
+                s.wypozyczony = False
+                s.przebieg = nowy_przebieg
+
+
+class Okno(QWidget):
+    def __init__(self):
+        super().__init__()
+
+        self.baza = Wypozyczalnia()
+
+        self.setWindowTitle("Wypożyczalnia samochodów")
+
+        self.marka = QLineEdit()
+        self.marka.setPlaceholderText("Marka")
+
+        self.model = QLineEdit()
+        self.model.setPlaceholderText("Model")
+
+        self.rok = QSpinBox()
+        self.rok.setRange(1900, 2030)
+
+        self.vin = QLineEdit()
+        self.vin.setPlaceholderText("VIN")
+
+        self.rejestracja = QLineEdit()
+        self.rejestracja.setPlaceholderText("Rejestracja")
+
+        self.przebieg = QSpinBox()
+        self.przebieg.setRange(0, 1000000)
+
+        self.cena = QDoubleSpinBox()
+        self.cena.setRange(0, 5000)
+
+        self.btn_dodaj = QPushButton("Dodaj samochód")
+        self.btn_dodaj.clicked.connect(self.dodaj)
+
+        self.btn_wypozycz = QPushButton("Wypożycz")
+        self.btn_wypozycz.clicked.connect(self.wypozycz)
+
+        self.btn_zwroc = QPushButton("Zwróć")
+        self.btn_zwroc.clicked.connect(self.zwroc)
+
+        self.tabela = QTableWidget()
+        self.tabela.setColumnCount(8)
+        self.tabela.setHorizontalHeaderLabels([
+            "Marka", "Model", "Rok", "VIN",
+            "Rejestracja", "Przebieg", "Cena", "Status"
+        ])
+
+        layout = QVBoxLayout()
+
+        layout.addWidget(self.marka)
+        layout.addWidget(self.model)
+        layout.addWidget(self.rok)
+        layout.addWidget(self.vin)
+        layout.addWidget(self.rejestracja)
+        layout.addWidget(self.przebieg)
+        layout.addWidget(self.cena)
+
+        layout.addWidget(self.btn_dodaj)
+        layout.addWidget(self.btn_wypozycz)
+        layout.addWidget(self.btn_zwroc)
+        layout.addWidget(self.tabela)
+
+        self.setLayout(layout)
+
+    def dodaj(self):
+        s = Samochod(
+            self.marka.text(),
+            self.model.text(),
+            self.rok.value(),
+            self.vin.text(),
+            self.rejestracja.text(),
+            self.przebieg.value(),
+            self.cena.value()
+        )
+
+        self.baza.dodaj_samochod(s)
+        self.odswiez()
+
+    def wypozycz(self):
+        self.baza.wypozycz_samochod(self.rejestracja.text())
+        self.odswiez()
+
+    def zwroc(self):
+        self.baza.zwroc_samochod(
+            self.rejestracja.text(),
+            self.przebieg.value()
+        )
+        self.odswiez()
+
+    def odswiez(self):
+        self.tabela.setRowCount(len(self.baza.samochody))
+
+        for i, s in enumerate(self.baza.samochody):
+            status = "Wypożyczony" if s.wypozyczony else "Dostępny"
+
+            self.tabela.setItem(i, 0, QTableWidgetItem(s.marka))
+            self.tabela.setItem(i, 1, QTableWidgetItem(s.model))
+            self.tabela.setItem(i, 2, QTableWidgetItem(str(s.rok)))
+            self.tabela.setItem(i, 3, QTableWidgetItem(s.vin))
+            self.tabela.setItem(i, 4, QTableWidgetItem(s.rejestracja))
+            self.tabela.setItem(i, 5, QTableWidgetItem(str(s.przebieg)))
+            self.tabela.setItem(i, 6, QTableWidgetItem(str(s.cena)))
+            self.tabela.setItem(i, 7, QTableWidgetItem(status))
+
+
+app = QApplication(sys.argv)
+
+okno = Okno()
+okno.show()
+
+sys.exit(app.exec_())
