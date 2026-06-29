@@ -1,0 +1,143 @@
+import sys
+import json
+
+from PyQt5.QtWidgets import *
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+
+
+class Flight:
+    def __init__(self, model, minuty, data):
+        self.model = model
+        self.minuty = minuty
+        self.data = data
+
+
+class DroneManager:
+    def __init__(self):
+        self.loty = []
+
+    def dodaj_lot(self, lot):
+        self.loty.append(lot)
+
+    def zapisz(self):
+        dane = []
+
+        for lot in self.loty:
+            dane.append({
+                "model": lot.model,
+                "minuty": lot.minuty,
+                "data": lot.data
+            })
+
+        with open("drony.json", "w") as plik:
+            json.dump(dane, plik)
+
+    def wczytaj(self):
+        try:
+            with open("drony.json", "r") as plik:
+                dane = json.load(plik)
+
+            for x in dane:
+                lot = Flight(
+                    x["model"],
+                    x["minuty"],
+                    x["data"]
+                )
+
+                self.loty.append(lot)
+
+        except:
+            pass
+
+
+class Okno(QWidget):
+    def __init__(self):
+        super().__init__()
+
+        self.manager = DroneManager()
+        self.manager.wczytaj()
+
+        self.setWindowTitle("Loty dronów")
+
+        self.model = QLineEdit()
+        self.model.setPlaceholderText("Model drona")
+
+        self.minuty = QSpinBox()
+        self.minuty.setRange(0, 10000)
+
+        self.data = QLineEdit()
+        self.data.setPlaceholderText("Data")
+
+        self.przycisk = QPushButton("Dodaj lot")
+        self.przycisk.clicked.connect(self.dodaj)
+
+        self.tabela = QTableWidget()
+        self.tabela.setColumnCount(3)
+        self.tabela.setHorizontalHeaderLabels([
+            "Model",
+            "Minuty",
+            "Data"
+        ])
+
+        self.figura = Figure()
+        self.canvas = FigureCanvas(self.figura)
+
+        layout = QVBoxLayout()
+
+        layout.addWidget(self.model)
+        layout.addWidget(self.minuty)
+        layout.addWidget(self.data)
+        layout.addWidget(self.przycisk)
+        layout.addWidget(self.tabela)
+        layout.addWidget(self.canvas)
+
+        self.setLayout(layout)
+
+        self.odswiez()
+
+    def dodaj(self):
+        lot = Flight(
+            self.model.text(),
+            self.minuty.value(),
+            self.data.text()
+        )
+
+        self.manager.dodaj_lot(lot)
+        self.manager.zapisz()
+
+        self.odswiez()
+
+    def odswiez(self):
+        self.tabela.setRowCount(len(self.manager.loty))
+
+        for i, lot in enumerate(self.manager.loty):
+            self.tabela.setItem(i, 0, QTableWidgetItem(lot.model))
+            self.tabela.setItem(i, 1, QTableWidgetItem(str(lot.minuty)))
+            self.tabela.setItem(i, 2, QTableWidgetItem(lot.data))
+
+        self.figura.clear()
+
+        ax = self.figura.add_subplot(111)
+
+        nalot = {}
+
+        for lot in self.manager.loty:
+            if lot.model in nalot:
+                nalot[lot.model] += lot.minuty / 60
+            else:
+                nalot[lot.model] = lot.minuty / 60
+
+        ax.bar(nalot.keys(), nalot.values())
+        ax.set_title("Nalot dronów")
+        ax.set_ylabel("Godziny")
+
+        self.canvas.draw()
+
+
+app = QApplication(sys.argv)
+
+okno = Okno()
+okno.show()
+
+sys.exit(app.exec_())
